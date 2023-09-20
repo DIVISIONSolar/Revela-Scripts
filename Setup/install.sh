@@ -98,12 +98,12 @@ while true; do
             # Add domain to Nginx config
             cat <<EOL | sudo tee -a /etc/nginx/sites-available/proxy.conf > /dev/null
 upstream Revela {
-   server 127.0.0.1:8080;
+    server 127.0.0.1:8080;
 }
 
 server {
-   server_name $domain_name;
-   listen 80;
+    server_name $domain_name;
+    listen 80;
 }
 
 server {
@@ -112,28 +112,24 @@ server {
     ssl_certificate /etc/letsencrypt/live/$domain_name/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$domain_name/privkey.pem;
 
-   # Redirect users
-   # (www to apex record)
-   if ($http_host ~ ^www\.(?<domain>.+)$ ) {
-      return 301 https://$domain$request_uri;
-   }
+    location / {
+        # Generic configuration for proxy:
+        # Upgrade WebSockets
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'Upgrade';
+        # Increase header buffer
+        proxy_set_header Host $host; 
+        proxy_connect_timeout 10;
+        proxy_send_timeout 90;
+        proxy_read_timeout 90;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_temp_file_write_size 256k;
+        proxy_pass http://Revela;
+    }
+}
 
-   location / {
-      # Generic configuration for proxy:
-      # Upgrade WebSockets
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'Upgrade';
-      # Increase header buffer
-      proxy_connect_timeout 10;
-      proxy_send_timeout 90;
-      proxy_read_timeout 90;
-      proxy_buffer_size 128k;
-      proxy_buffers 4 256k;
-      proxy_busy_buffers_size 256k;
-      proxy_temp_file_write_size 256k;
-      proxy_pass http://Revela;
-   }
- }
 EOL
 
             # Remove default config
