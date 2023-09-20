@@ -39,7 +39,7 @@ if ! [ -x "$(command -v node)" ]; then
     curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash - > /dev/null 2>&1 && sudo apt install -y nodejs > /dev/null 2>&1
 fi
 
-# Install NPM 
+# Install NPM
 if ! [ -x "$(command -v npm)" ]; then
     echo -e "\e[32m* Installing NPM.\e[0m"
     sudo apt install -y npm > /dev/null 2>&1
@@ -59,6 +59,8 @@ fi
 
 # Install Revela Network app
 echo -e "\e[32m* Starting Installation\e[0m"
+echo -e "\e[32m* Switching to root dir\e[0m"
+cd /root
 git clone https://github.com/DIVISIONSolar/Revela-App > /dev/null 2>&1
 cd ~/Revela-App
 npm install > /dev/null 2>&1
@@ -71,3 +73,84 @@ cd /root/Revela-App
 sudo pm2 start "npm start" --name "Revela App"
 sudo pm2 startup
 sudo pm2 save
+
+# Setup SSL & Domain
+
+RESET="\e[0m"
+GREEN="\e[32m"
+
+# Ask if they want to setup a domain (if not load balancing)
+while true; do
+    read -p "$(echo -e $GREEN"\n* Do you want to set up a domain? (Y/N)"$RESET)" domain_yn
+    case $domain_yn in
+        [yY] )
+            echo -e "\e[32m* Starting domain setup...\e[0m"
+
+            # Prompt for domain name
+            read -p "$(echo -e $GREEN"\n* Enter your domain (e.g., example.com):"$RESET)" domain_name
+
+            # Install Certbot for SSL
+            sudo apt install -y certbot python3-certbot-nginx > /dev/null 2>&1
+
+            # Request SSL certificate
+            sudo certbot --nginx -d $domain_name
+
+            # Add domain to Nginx config
+            cat <<EOL | sudo tee -a /etc/nginx/sites-available/proxy.conf > /dev/null
+upstream Revela {
+   server 127.0.0.1:8080;
+}
+
+server {
+   server_name $domain_name;
+   listen 80;
+}
+
+server {
+    listen 443 ssl;
+    server_name $domain_name;
+    ssl_certificate /etc/letsencrypt/live/$domain_name/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$domain_name/privkey.pem;
+
+   # Redirect users
+   # (www to apex record)
+   if ($http_host ~ ^www\.(?<domain>.+)$ ) {
+      return 301 https://$domain$request_uri;
+   }
+
+   location / {
+      # Generic configuration for proxy:
+      # Upgrade WebSockets
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'Upgrade';
+      # Increase header buffer
+      proxy_connect_timeout 10;
+      proxy_send_timeout 90;
+      proxy_read_timeout 90;
+      proxy_buffer_size 128k;
+      proxy_buffers 4 256k;
+      proxy_busy_buffers_size 256k;
+      proxy_temp_file_write_size 256k;
+      proxy_pass http://Revela;
+   }
+ }
+EOL
+
+            # Remove default config
+            sudo rm /etc/nginx/sites-enabled/default
+            sudo rm /etc/nginx/sites-available/default
+
+            # Create symbolic link
+            sudo ln -s /etc/nginx/sites-available/proxy.conf /etc/nginx/sites-enabled/proxy.conf
+
+            # Restart Nginx
+            sudo systemctl restart nginx
+
+            echo -e "\e[32m* Domain setup completed\e[0m"
+            break;;
+        [nN] )
+            echo -e "\e[32m* Skipped domain setup\e[0m"
+            break;;
+        * ) echo -e "\e[32m* Invalid Response.\e[0m";;
+    esac
+done
