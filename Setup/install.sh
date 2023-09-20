@@ -115,10 +115,10 @@ server {
     location / {
         # Generic configuration for proxy:
         # Upgrade WebSockets
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'Upgrade';
         # Increase header buffer
-        proxy_set_header Host $host; 
+        proxy_set_header Host \$host; 
         proxy_connect_timeout 10;
         proxy_send_timeout 90;
         proxy_read_timeout 90;
