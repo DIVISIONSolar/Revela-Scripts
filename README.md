@@ -29,3 +29,8 @@ Method #2 `wget https://raw.githubusercontent.com/DIVISIONSolar/Revela-Scripts/m
         <span class="node-id">NA.NYC.01</span>
       </button>
 ```
+# COMMANDS:
+
+To see the logs of the proxy run `tail -f /var/log/nginx/domain.tld.access.log`
+
+To restart the nodes run `pm2 restart Revela`
