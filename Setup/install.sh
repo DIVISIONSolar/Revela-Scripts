@@ -104,6 +104,7 @@ upstream Revela {
 server {
     server_name $domain_name;
     listen 80;
+    return 301 https://$host$request_uri;
 }
 
 server {
